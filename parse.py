@@ -2,6 +2,7 @@ import argparse
 
 
 def parse_args():
+    parser = argparse.ArgumentParser(description="MAGNeT")
     parser.add_argument('--batch_size', type=int,default=16,
                         help="the batch size for bpr loss training procedure")
     parser.add_argument('--lr', type=float,default=0.0005,

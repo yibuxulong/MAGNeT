@@ -4,7 +4,7 @@ import numpy as np
 import time
 from os.path import join
 import os
-from preprocessing import split_train_test, get_data
+from preprocessing import split_train_test
 from parse import parse_args
 import pandas as pd
 import collections
@@ -18,22 +18,28 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 args = parse_args()
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+    num_workers = 2
+else:
+    device = torch.device("cpu")
+    num_workers = 0
+
 args.num_target = 15
 args.dim_user = 5
 epoch_early_stop = 100
 early_stop_patience = 10
 
-kwargs = {'num_workers': 2, 'pin_memory': True}
+kwargs = {'num_workers': num_workers, 'pin_memory': True}
 condition_name = ["W", "V", "E"]
-vib_name = ["Vibration velocity X_1", "Vibration velocity Y_1", "Vibration velocity Z_1", "Vibration angle X_1", "Vibration angle Y_1", "Vibration angle Z_1", "Vibration displacement X_1", "Vibration displacement Y_1", "Vibration displacement Z_1", "Vibration frequency X_1", "Vibration frequency Y_1", "Vibration frequency Z_1",
-"Vibration velocity X_2", "Vibration velocity Y_2", "Vibration velocity Z_2", "Vibration angle X_2", "Vibration angle Y_2", "Vibration angle Z_2", "Vibration displacement X_2", "Vibration displacement Y_2", "Vibration displacement Z_2", "Vibration frequency X_2", "Vibration frequency Y_2", "Vibration frequency Z_2",
-"Vibration velocity X_3", "Vibration velocity Y_3", "Vibration velocity Z_3", "Vibration angle X_3", "Vibration angle Y_3", "Vibration angle Z_3", "Vibration displacement X_3", "Vibration displacement Y_3", "Vibration displacement Z_3", "Vibration frequency X_3", "Vibration frequency Y_3", "Vibration frequency Z_3",
-"Vibration velocity X_4", "Vibration velocity Y_4", "Vibration velocity Z_4", "Vibration angle X_4", "Vibration angle Y_4", "Vibration angle Z_4", "Vibration displacement X_4", "Vibration displacement Y_4", "Vibration displacement Z_4", "Vibration frequency X_4", "Vibration frequency Y_4", "Vibration frequency Z_4",
-"Vibration velocity X_5", "Vibration velocity Y_5", "Vibration velocity Z_5", "Vibration angle X_5", "Vibration angle Y_5", "Vibration angle Z_5", "Vibration displacement X_5", "Vibration displacement Y_5", "Vibration displacement Z_5", "Vibration frequency X_5", "Vibration frequency Y_5", "Vibration frequency Z_5",
-"Vibration velocity X_6", "Vibration velocity Y_6", "Vibration velocity Z_6", "Vibration angle X_6", "Vibration angle Y_6", "Vibration angle Z_6", "Vibration displacement X_6", "Vibration displacement Y_6", "Vibration displacement Z_6", "Vibration frequency X_6", "Vibration frequency Y_6", "Vibration frequency Z_6",
-"Vibration velocity X_7", "Vibration velocity Y_7", "Vibration velocity Z_7", "Vibration angle X_7", "Vibration angle Y_7", "Vibration angle Z_7", "Vibration displacement X_7", "Vibration displacement Y_7", "Vibration displacement Z_7", "Vibration frequency X_7", "Vibration frequency Y_7", "Vibration frequency Z_7",
-"Vibration velocity X_8", "Vibration velocity Y_8", "Vibration velocity Z_8", "Vibration angle X_8", "Vibration angle Y_8", "Vibration angle Z_8", "Vibration displacement X_8", "Vibration displacement Y_8", "Vibration displacement Z_8", "Vibration frequency X_8", "Vibration frequency Y_8", "Vibration frequency Z_8"]
-
+vib_name = ["vel_x_1", "vel_y_1", "vel_z_1", "ang_x_1", "ang_y_1", "ang_z_1", "disp_x_1", "disp_y_1", "disp_z_1", "freq_x_1", "freq_y_1", "freq_z_1", \
+            "vel_x_2", "vel_y_2", "vel_z_2", "ang_x_2", "ang_y_2", "ang_z_2", "disp_x_2", "disp_y_2", "disp_z_2", "freq_x_2", "freq_y_2", "freq_z_2", \
+            "vel_x_3", "vel_y_3", "vel_z_3", "ang_x_3", "ang_y_3", "ang_z_3", "disp_x_3", "disp_y_3", "disp_z_3", "freq_x_3", "freq_y_3", "freq_z_3", \
+            "vel_x_4", "vel_y_4", "vel_z_4", "ang_x_4", "ang_y_4", "ang_z_4", "disp_x_4", "disp_y_4", "disp_z_4", "freq_x_4", "freq_y_4", "freq_z_4", \
+            "vel_x_5", "vel_y_5", "vel_z_5", "ang_x_5", "ang_y_5", "ang_z_5", "disp_x_5", "disp_y_5", "disp_z_5", "freq_x_5", "freq_y_5", "freq_z_5", \
+            "vel_x_6", "vel_y_6", "vel_z_6", "ang_x_6", "ang_y_6", "ang_z_6", "disp_x_6", "disp_y_6", "disp_z_6", "freq_x_6", "freq_y_6", "freq_z_6", \
+            "vel_x_7", "vel_y_7", "vel_z_7", "ang_x_7", "ang_y_7", "ang_z_7", "disp_x_7", "disp_y_7", "disp_z_7", "freq_x_7", "freq_y_7", "freq_z_7", \
+            "vel_x_8", "vel_y_8", "vel_z_8", "ang_x_8", "ang_y_8", "ang_z_8", "disp_x_8", "disp_y_8", "disp_z_8", "freq_x_8", "freq_y_8", "freq_z_8"]
 acc_name = ["acc_x_1", "acc_y_1", "acc_z_1", "acc_x_2", "acc_y_2", "acc_z_2", "acc_x_3", "acc_y_3", "acc_z_3",\
              "acc_x_4", "acc_y_4", "acc_z_4", "acc_x_5", "acc_y_5", "acc_z_5", "acc_x_6", "acc_y_6", "acc_z_6", 
              "acc_x_7", "acc_y_7", "acc_z_7", "acc_x_8", "acc_y_8", "acc_z_8"]
@@ -345,7 +351,7 @@ class FusionModel(nn.Module):
             user_features = self.extract_user_features(condition_user)
             touch_features = self.extract_touch_features(condition_touch)
         else:
-            env_features = torch.zeros(size_batch, self.args.hidden_dim*4).cuda()
+            env_features = torch.zeros(size_batch, self.args.hidden_dim*4).to(device)
         adapted_paras = self.adapted_paras.unsqueeze(0).expand(size_batch, -1, -1)
         # Calculate Gaussian parameters
         MU, SIGMA = self.calc_mu_sigma(adapted_paras, condition_touch)
@@ -391,12 +397,12 @@ if not os.path.exists(result_file):
 file_save = open(result_file+'/result.txt','w')
 
 
-para = pd.read_csv('./dataset/parameters.csv')
+para = pd.read_csv('./dataset_2d/parameters.csv')
 para = para.drop(para.columns[0], axis=1)
-endpoints = pd.read_csv('./dataset/endpoints_total.csv')
-rmsa = pd.read_csv('./dataset/rmsa_total.csv')
-acc = pd.read_csv('./dataset/acc_total.csv')
-vib = pd.read_csv('./dataset/vib_total.csv')
+endpoints = pd.read_csv('./dataset_2d/endpoints_total.csv')
+rmsa = pd.read_csv('./dataset_2d/rmsa_total.csv')
+acc = pd.read_csv('./dataset_2d/acc_total.csv')
+vib = pd.read_csv('./dataset_2d/vib_total.csv')
 
 data_original = pd.concat([endpoints, rmsa, acc, vib], axis=1)
 
@@ -438,7 +444,7 @@ for seed in seed_array:
         dataloader_test = DataLoader(data_test, batch_size=args.batch_size, shuffle=False, **kwargs)
     
     model = FusionModel(para, args)
-    model = model.cuda()
+    model = model.to(device)
     
     # Improved optimizer and scheduler
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.decay)
@@ -457,13 +463,13 @@ for seed in seed_array:
         
         for i, (condition, touch_xy, env, label) in enumerate(dataloader_train):
             size_batch = condition.shape[0]
-            condition = condition.cuda()
-            touch_xy = touch_xy.cuda()
-            label = label.cuda()
+            condition = condition.to(device)
+            touch_xy = touch_xy.to(device)
+            label = label.to(device)
             [rmsa,vib,acc] = env
-            rmsa = rmsa.cuda()
-            vib = vib.cuda()
-            acc = acc.cuda()
+            rmsa = rmsa.to(device)
+            vib = vib.to(device)
+            acc = acc.to(device)
             
             prob = model(condition, touch_xy, [rmsa,vib,acc])
             
@@ -474,7 +480,7 @@ for seed in seed_array:
             negative_scores = prob[negative_mask].view(prob.shape[0], -1)
             max_negative_scores, _ = negative_scores.max(dim=1, keepdim=True)
 
-            target = torch.ones(prob.shape[0], 1).cuda()
+            target = torch.ones(prob.shape[0], 1).to(device)
             ranking_loss_val = ranking_loss(positive_scores, max_negative_scores, target)
             
             # Add diversity loss to encourage balanced expert usage
@@ -511,13 +517,13 @@ for seed in seed_array:
         model.eval()
         for i, (condition, touch_xy, env, label) in enumerate(dataloader_val):
             with torch.no_grad():
-                condition = condition.cuda()
-                touch_xy = touch_xy.cuda()
-                label = label.cuda()
+                condition = condition.to(device)
+                touch_xy = touch_xy.to(device)
+                label = label.to(device)
                 [rmsa,vib,acc] = env
-                rmsa = rmsa.cuda()
-                vib = vib.cuda()
-                acc = acc.cuda()
+                rmsa = rmsa.to(device)
+                vib = vib.to(device)
+                acc = acc.to(device)
                 prob = model(condition, touch_xy, [rmsa,vib,acc])
                 ranking_loss = nn.MarginRankingLoss(margin=1.0)
                 positive_scores = prob.gather(1, label.argmax(dim=1).unsqueeze(1))
@@ -525,7 +531,7 @@ for seed in seed_array:
                 negative_scores = prob[negative_mask].view(prob.shape[0], -1)
                 max_negative_scores, _ = negative_scores.max(dim=1, keepdim=True)
 
-                target = torch.ones(prob.shape[0], 1).cuda()
+                target = torch.ones(prob.shape[0], 1).to(device)
                 ranking_loss_val = ranking_loss(positive_scores, max_negative_scores, target)
                 
                 # Add diversity loss to encourage balanced expert usage
@@ -585,13 +591,13 @@ for seed in seed_array:
             error_weight = []
             for i, (condition, touch_xy, env, label) in enumerate(dataloader_test):
                 with torch.no_grad():
-                    condition = condition.cuda()
-                    touch_xy = touch_xy.cuda()
-                    label = label.cuda()
+                    condition = condition.to(device)
+                    touch_xy = touch_xy.to(device)
+                    label = label.to(device)
                     [rmsa,vib,acc] = env
-                    rmsa = rmsa.cuda()
-                    vib = vib.cuda()
-                    acc = acc.cuda()
+                    rmsa = rmsa.to(device)
+                    vib = vib.to(device)
+                    acc = acc.to(device)
                     prob = model(condition, touch_xy, [rmsa,vib,acc])
                     _, topk_pred = prob.topk(3, dim=1)
                     label_true = label.argmax(dim=1).unsqueeze(1).expand(-1, 3)
